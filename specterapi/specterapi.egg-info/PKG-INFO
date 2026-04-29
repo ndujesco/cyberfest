@@ -1,0 +1,11 @@
+Metadata-Version: 2.4
+Name: specterapi
+Version: 0.1.0
+Summary: Full-spectrum API attack surface suite — Zer0day Saints
+Requires-Python: >=3.11
+Requires-Dist: httpx[http2]>=0.27
+Requires-Dist: rich>=13
+Requires-Dist: click>=8
+Requires-Dist: prompt_toolkit>=3.0
+Requires-Dist: reportlab>=4.0
+Requires-Dist: beautifulsoup4>=4.12

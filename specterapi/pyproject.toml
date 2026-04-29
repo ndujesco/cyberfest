@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=42"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "specterapi"
+version = "0.1.0"
+description = "Full-spectrum API attack surface suite — Zer0day Saints"
+requires-python = ">=3.11"
+dependencies = [
+    "httpx[http2]>=0.27",
+    "rich>=13",
+    "click>=8",
+    "prompt_toolkit>=3.0",
+    "reportlab>=4.0",
+    "beautifulsoup4>=4.12",
+]
+
+[project.scripts]
+specterapi = "specterapi:cli"
+
+[tool.setuptools]
+py-modules = ["specterapi"]
+packages = ["core", "modules", "modules.ghost", "modules.token", "modules.idor", "reports"]
