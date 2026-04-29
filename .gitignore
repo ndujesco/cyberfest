@@ -23,5 +23,5 @@ Thumbs.db
 *.swp
 *.swo
 
-backend
-frontend
+backend/
+frontend/
