@@ -49,8 +49,8 @@ def cli(ctx):
     """SpecterAPI — API Security Scanner"""
     if ctx.invoked_subcommand is None:
         out.print_banner()
-        from core.repl import SpecterREPL
-        SpecterREPL().run()
+        from core.repl import Repl
+        asyncio.run(Repl().run())
 
 
 @cli.command()
@@ -66,18 +66,18 @@ def cli(ctx):
 def ghost(target, depth, probe, wordlist, proxy, delay, timeout, output, out_file):
     """Discover hidden API endpoints from JS bundles."""
     out.print_banner()
-    session = Session.new(target)
+    session = Session(target=target)
     client = _make_client(target, None, None, proxy, delay, timeout)
 
     async def _run():
         from modules.ghost import GhostModule
         async with client:
             module = GhostModule(session, client)
-            findings = await module.run(depth=depth, probe=probe, wordlist=wordlist)
+            findings = await module.run(depth=depth, probe=probe)
         return findings
 
     findings = asyncio.run(_run())
-    out.findings_summary(session)
+    out.findings_summary(session.get_findings())
 
     if output == "json":
         path = out_file or f"specter_ghost_{session.id[:8]}.json"
@@ -98,7 +98,7 @@ def ghost(target, depth, probe, wordlist, proxy, delay, timeout, output, out_fil
 def token(target, proxy, delay, timeout, output, out_file):
     """Test OAuth 2.0 / OIDC attack surface."""
     out.print_banner()
-    session = Session.new(target)
+    session = Session(target=target)
     client = _make_client(target, None, None, proxy, delay, timeout)
 
     async def _run():
@@ -108,7 +108,7 @@ def token(target, proxy, delay, timeout, output, out_file):
             return await module.run()
 
     findings = asyncio.run(_run())
-    out.findings_summary(session)
+    out.findings_summary(session.get_findings())
 
     if output == "json":
         path = out_file or f"specter_token_{session.id[:8]}.json"
@@ -131,7 +131,7 @@ def token(target, proxy, delay, timeout, output, out_file):
 def idor(target, user_a, user_b, proxy, delay, timeout, output, out_file):
     """Test for BOLA/IDOR across dual user sessions."""
     out.print_banner()
-    session = Session.new(target)
+    session = Session(target=target)
     client = _make_client(target, user_a, user_b, proxy, delay, timeout)
 
     async def _run():
@@ -141,7 +141,7 @@ def idor(target, user_a, user_b, proxy, delay, timeout, output, out_file):
             return await module.run()
 
     findings = asyncio.run(_run())
-    out.findings_summary(session)
+    out.findings_summary(session.get_findings())
 
     if output == "json":
         path = out_file or f"specter_idor_{session.id[:8]}.json"
@@ -167,7 +167,7 @@ def chain(target, user_a, user_b, depth, probe, proxy, delay, timeout, output, o
     """Run ghost → token → idor in sequence (full attack chain)."""
     out.print_banner()
     out.info(f"[bold cyan]CHAIN[/] — full attack chain against {target}")
-    session = Session.new(target)
+    session = Session(target=target)
     client = _make_client(target, user_a, user_b, proxy, delay, timeout)
 
     async def _run():
@@ -195,7 +195,7 @@ def chain(target, user_a, user_b, depth, probe, proxy, delay, timeout, output, o
         return all_findings
 
     findings = asyncio.run(_run())
-    out.findings_summary(session)
+    out.findings_summary(session.get_findings())
 
     if output == "json":
         path = out_file or f"specter_chain_{session.id[:8]}.json"

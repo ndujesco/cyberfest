@@ -200,8 +200,8 @@ class Repl:
         fmt = args[0] if args else "pdf"
         if fmt == "pdf":
             try:
-                from reports.pdf_renderer import generate_pdf
-                path = generate_pdf(self.session)
+                from reports.pdf_renderer import render_pdf
+                path = render_pdf(self.session)
                 out.success(f"PDF saved: {path}")
             except Exception as e:
                 out.error(f"PDF failed: {e}")

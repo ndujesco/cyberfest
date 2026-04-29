@@ -142,10 +142,19 @@ class Session:
         ]
 
     def summary(self) -> dict:
-        counts = {s.value: 0 for s in Severity}
-        for f in self.get_findings():
-            counts[f.severity.value] += 1
-        return counts
+        findings = self.get_findings()
+        sev_counts: dict[str, int] = {s.value: 0 for s in Severity}
+        for f in findings:
+            sev_counts[f.severity.value] += 1
+        ep_count = self._conn.execute(
+            "SELECT COUNT(*) FROM endpoints WHERE session_id=?", (self.id,)
+        ).fetchone()[0]
+        return {
+            "target": self.target,
+            "endpoints": ep_count,
+            "findings": len(findings),
+            "severity_counts": sev_counts,
+        }
 
     def close(self):
         self._conn.close()

@@ -17,13 +17,13 @@ class GhostModule:
         self.session = session
         self.client = client
 
-    async def run(self, depth: int = 3, probe: bool = True):
+    async def run(self, depth: int = 3, probe: bool = True) -> list:
         out.info(f"[bold]Ghost[/] — crawling [cyan]{self.client.target}[/]")
 
         js_urls = await Crawler(self.client).collect(depth=depth)
         if not js_urls:
             out.warn("No JS bundles found — target may require authentication or is not a SPA")
-            return
+            return []
         out.success(f"Found {len(js_urls)} JS chunk(s)")
 
         sweeper = RegexSweep()
@@ -54,7 +54,7 @@ class GhostModule:
         if not probe:
             for c in unique:
                 self.session.add_endpoint(path=c["path"], method=c["method"], source_file=c.get("source"))
-            return
+            return []
 
         findings = await Prober(self.client, self.session).probe_all(unique)
         for f in findings:
@@ -70,3 +70,4 @@ class GhostModule:
         )
         if eps:
             out.endpoints_table(eps[:40])
+        return findings

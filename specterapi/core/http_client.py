@@ -29,19 +29,19 @@ class DualClient:
         self.user_b_token = user_b_token
         self.delay = delay
 
-        proxies = {"http://": proxy, "https://": proxy} if proxy else None
-
         def _make_client(token: Optional[str]) -> httpx.AsyncClient:
             headers = dict(_DEFAULT_HEADERS)
             if token:
                 headers["Authorization"] = f"Bearer {token}"
-            return httpx.AsyncClient(
+            kwargs: dict = dict(
                 headers=headers,
-                proxies=proxies,
                 timeout=timeout,
                 verify=verify,
                 follow_redirects=True,
             )
+            if proxy:
+                kwargs["proxy"] = proxy
+            return httpx.AsyncClient(**kwargs)
 
         self._anon = _make_client(None)
         self._a = _make_client(user_a_token)
