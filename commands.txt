@@ -18,4 +18,16 @@ specterapi chain \
 
   specterapi
 
+
+  specterapi
+specter > use ghost
+specter[ghost] > set target http://localhost:8888
+specter[ghost] > set depth 3
+specter[ghost] > options
+specter[ghost] > run
+specter[ghost] > show findings
+specter[ghost] > report pdf
+specter[ghost] > back
+specter > sessions
+
   specterapi sessions
