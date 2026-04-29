@@ -52,6 +52,30 @@ class Session:
         self._conn.commit()
 
     @classmethod
+    def find_latest(cls, target: str) -> "Session | None":
+        """Return the most recent session for *target* that has endpoints, or None."""
+        SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
+        for db_file in sorted(SESSIONS_DIR.glob("*.db"), reverse=True):
+            try:
+                conn = sqlite3.connect(str(db_file))
+                conn.row_factory = sqlite3.Row
+                row = conn.execute(
+                    "SELECT id FROM sessions WHERE target=? LIMIT 1", (target,)
+                ).fetchone()
+                if row:
+                    ep_count = conn.execute(
+                        "SELECT COUNT(*) FROM endpoints WHERE session_id=?", (row["id"],)
+                    ).fetchone()[0]
+                    conn.close()
+                    if ep_count > 0:
+                        return cls.load(row["id"])
+                else:
+                    conn.close()
+            except Exception:
+                pass
+        return None
+
+    @classmethod
     def list_sessions(cls) -> list[dict]:
         SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
         out = []

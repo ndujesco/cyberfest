@@ -123,15 +123,26 @@ def token(target, proxy, delay, timeout, output, out_file):
 @click.option("-t", "--target", required=True, help="Target base URL")
 @click.option("--user-a", required=True, help="User A (victim) Bearer token")
 @click.option("--user-b", required=True, help="User B (attacker) Bearer token")
+@click.option("--session", "session_id", default=None, help="Resume a specific session ID (uses its endpoints)")
 @click.option("--proxy", default=None, help="HTTP proxy")
 @click.option("--delay", default=0.0, help="Delay between requests (seconds)")
 @click.option("--timeout", default=15.0, help="Request timeout (seconds)")
 @click.option("--output", default="table", type=click.Choice(["table", "json", "pdf"]))
 @click.option("--out-file", default=None, help="Output file path")
-def idor(target, user_a, user_b, proxy, delay, timeout, output, out_file):
+def idor(target, user_a, user_b, session_id, proxy, delay, timeout, output, out_file):
     """Test for BOLA/IDOR across dual user sessions."""
     out.print_banner()
-    session = Session(target=target)
+    if session_id:
+        session = Session.load(session_id)
+        out.info(f"Loaded session [cyan]{session_id[:8]}[/] ({len(session.get_endpoints())} endpoints)")
+    else:
+        session = Session.find_latest(target)
+        if session:
+            ep_count = len(session.get_endpoints())
+            out.info(f"Auto-loaded session [cyan]{session.id[:8]}[/] with {ep_count} endpoint(s) from ghost run")
+        else:
+            out.warn("No prior ghost session found for this target — creating a new session (no endpoints)")
+            session = Session(target=target)
     client = _make_client(target, user_a, user_b, proxy, delay, timeout)
 
     async def _run():
