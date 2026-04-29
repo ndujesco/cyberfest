@@ -1,153 +1,179 @@
-# Zer0day Saints — Security Scanner
+# SpecterAPI — Full-spectrum API Attack Surface Suite
 
-Hackathon demo for **Cyberfest**. The concept: 10 individual open-source security tool ideas, clustered into 3 unified tools that share a domain, a target, and an operator workflow. Each cluster is a single tool with a coherent attack narrative — not a bundle of scripts.
+**Zer0day Saints · Cyberfest Hackathon**
 
----
-
-## The Three Clusters
-
-| # | Tool | Constituent tools | Domain |
-|---|------|-------------------|--------|
-| 1 | **SpecterAPI** | GhostRoutes · TokenHunt · IDORacle · SockPuppet | Web & API Security |
-| 2 | **ChainBreak ★** *(recommended)* | KeyFlare · PipeBreak · ConfuseCheck | Supply Chain & DevSecOps |
-| 3 | **PathForge** | TerraTarget · BlastMap · ReportForge | Cloud & Pentest Reporting |
-
-### SpecterAPI — Full-spectrum API attack surface suite
-Covers the three kinds of API attack surface every modern app has: hidden REST/GraphQL endpoints, broken identity flows, and real-time WebSocket channels. Workflow: **discover shadow endpoints → break auth → test object authorisation → fuzz WebSocket channels**. Closest existing tool is Burp Suite, but that requires manual work at each step with no IDOR-first or WebSocket-first mode.
-
-### ChainBreak ★ — Developer supply chain & pipeline security auditor
-A real supply chain attack hits three vectors at once: plants a malicious package (ConfuseCheck), injects into the CI workflow that installs it (PipeBreak), and exfiltrates the secrets that workflow had access to (KeyFlare). No existing tool covers all three. Workflow: **audit dependencies for confusion → scan CI/CD for injection → map secret blast radius**. Supply chain security is the industry's hottest topic post-SolarWinds and XZ Utils — judges immediately understand the stakes.
-
-### PathForge — End-to-end attack path intelligence & reporting
-Answers the same question from three vantage points: what can an attacker reach, and how bad is it? TerraTarget predicts attack paths *before* compromise (from IaC). BlastMap maps reachability *after* initial access (from a live host). ReportForge converts both into a professional deliverable. Think open-source BloodHound for the cloud era. Workflow: **predict paths from IaC → confirm paths post-access → generate narrative report**.
+SpecterAPI is a Python CLI security tool that chains three attack modules — ghost endpoint discovery, OAuth exploitation, and dual-session BOLA/IDOR testing — into one continuous, session-aware workflow. What takes a manual tester an hour with four separate tools takes SpecterAPI one command.
 
 ---
 
-## What's in this repo
+## The Three Modules
 
-```
-cyberfest/
-├── index.html          # original standalone demo (no build step needed)
-├── frontend/           # Vite + React port of the demo (mock data, same behaviour)
-└── backend/            # Express API — fetches a real URI and analyses it with Claude
-```
+| Module | Name | What it does |
+|--------|------|-------------|
+| `ghost` | GhostRoutes | Crawls JS bundles, extracts hidden API paths via regex sweep, probes each endpoint anonymously to detect unauthenticated access |
+| `token` | TokenHunt | Walks the full OAuth 2.0 attack tree: OIDC discovery, redirect_uri bypass, PKCE enforcement, subdomain injection |
+| `idor` | IDORacle | Dual-session BOLA testing — records User A's object IDs, replays every request as User B, diffs responses to confirm cross-user access |
 
-### Frontend (`frontend/`)
+The `chain` command runs all three in sequence, passing Ghost's discovered endpoints directly into Token and IDOR — no manual steps between modules.
 
-A pixel-perfect React port of `index.html`. It is a **mock** — all findings, scores, and scan timelines are hardcoded to demonstrate the full demo flow without making any network calls.
+---
 
-**Demo flow (keyboard-driven):**
-1. Opens on the landing screen with a typewriter effect typing the target URL
-2. Press `Space` → triggers the ChainBreak scan animation (3 phases with live progress bars)
-3. Scan completes → dashboard with risk score gauge + findings for ChainBreak
-4. `Space` again → reveals all ChainBreak findings
-5. `Space` → switches to SpecterAPI tab with its findings
-6. `Space` → switches to PathForge tab, animates the step-by-step attack path (S3 → Lambda → Secrets Manager → RDS), then shows findings
-7. `Space` → opens the Full Report modal with PDF export and JSON copy
+## Why it exists
 
-You can also click the nav tabs directly to switch tools at any time.
+Traditional scanners test as a single identity and have no concept of resource ownership — so they miss BOLA entirely. Existing OAuth testers run one check at a time. JS endpoint extraction tools don't connect to an auth or IDOR test. SpecterAPI's core innovation is the **continuous session chain**: one SQLite session persists discovered endpoints, object IDs, and findings across all three modules.
 
-### Backend (`backend/`)
+Research basis: HackerOne disclosed reports — PayPal IDOR ($10,500), Grafana CVE-2023-3128, Badoo OAuth redirect_uri, Shopify GraphQL BOLA — confirm this three-phase workflow is how real vulnerabilities are found in practice.
 
-A real Express server with one endpoint:
+---
 
-```
-POST /api/scan
-Content-Type: application/json
+## Usage
 
-{ "uri": "https://github.com/owner/repo" }
+### Install
+
+```bash
+cd specterapi
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e .
 ```
 
-**What it actually does:**
+### One-liner mode
 
-1. **GitHub URLs** — uses the GitHub API to fetch the repository's file tree, filters to security-relevant files (CI/CD workflows, Terraform, Dockerfiles, dependency manifests, config files), and fetches up to 25 of them
-2. **Any other URL** — fetches the raw HTTP response body
-3. Sends the collected content to **Claude** (`claude-sonnet-4-6`) with a security analyst system prompt
-4. Returns a structured JSON report:
+```bash
+# Discover hidden endpoints from JS bundles
+specterapi ghost -t https://app.target.com --probe --output json
+
+# Walk the OAuth attack tree
+specterapi token -t https://auth.target.com --output pdf
+
+# Dual-session BOLA test
+specterapi idor -t https://api.target.com --user-a <tokenA> --user-b <tokenB>
+
+# Full attack chain — ghost → token → idor in one run
+specterapi chain -t https://app.target.com --user-a <tokenA> --user-b <tokenB> --output pdf
+```
+
+### Interactive REPL
+
+```bash
+specterapi
+```
+
+```
+specter > use ghost
+specter[ghost] > set target https://app.target.com
+specter[ghost] > set depth 3
+specter[ghost] > run
+specter[ghost] > show endpoints
+specter[ghost] > report pdf
+```
+
+### Options
+
+| Flag | Description |
+|------|-------------|
+| `-t / --target` | Target base URL (required) |
+| `--user-a` | User A (victim) Bearer token — required for IDOR |
+| `--user-b` | User B (attacker) Bearer token — required for IDOR |
+| `--depth` | JS crawl depth (default: 2) |
+| `--probe` | Probe discovered endpoints anonymously |
+| `--proxy` | Route through proxy, e.g. `http://127.0.0.1:8080` |
+| `--delay` | Delay between requests in seconds |
+| `--output` | `table` (default) · `json` · `pdf` |
+| `--out-file` | Custom output file path |
+
+---
+
+## What each module checks
+
+### ghost
+- Crawls the target HTML for JS bundle URLs
+- Regex sweep across all bundles: `fetch(`, `axios.`, `XMLHttpRequest`, template literals, string assignments — targeting `/api/`, `/v1/`, `/admin/`, `/debug/` paths
+- Probes each discovered endpoint anonymously — flags unauthenticated 200s on admin/debug paths as CRITICAL, other exposed paths as HIGH
+
+### token
+- Probes `/.well-known/openid-configuration` and 5 common variants
+- **redirect_uri open redirect** — sends `redirect_uri=https://attacker.example.com/catch`, confirms if server follows it
+- **redirect_uri path traversal** — sends `/callback/../evil` and URL-encoded variant
+- **redirect_uri subdomain injection** — sends `evil.<target-domain>/callback`
+- **PKCE missing** — omits `code_challenge` entirely, checks if server still proceeds
+- **PKCE plain downgrade** — sends `code_challenge_method=plain`, checks if server accepts weaker method
+- **Token endpoint PKCE skip** — sends token exchange without `code_verifier`
+
+### idor
+- Records all endpoints from the session (or runs ghost inline)
+- Makes GET requests as User A, extracts object IDs from path segments and JSON response bodies
+- Replays each request as User B
+- Diffs responses: similar body + User B 200 = read BOLA; User B DELETE 200 = destructive BOLA; User B 200 when User A got 401/403 = auth bypass
+
+---
+
+## Output
+
+Every finding has a consistent schema:
 
 ```json
 {
-  "metadata": { "generated": "...", "scanner": "Zer0day Saints", "totalFindings": 4 },
-  "summary": { "critical": 2, "high": 1, "medium": 1 },
-  "tools": [{
-    "id": "scan",
-    "riskScore": 8.7,
-    "findings": [{
-      "id": "f1",
-      "sev": "critical",
-      "title": "...",
-      "loc": "...",
-      "what": "plain-English explanation",
-      "impact": "business impact",
-      "tech": "technical detail",
-      "fix": "remediation steps"
-    }]
-  }]
+  "id": "A3F2B1C4",
+  "module": "idor",
+  "severity": "critical",
+  "title": "BOLA — GET /api/orders/1042 accessible cross-user",
+  "endpoint": "GET /api/orders/1042",
+  "evidence": "User B (HTTP 200, 1,842B) accessed User A's resource. Body similarity: 94%.",
+  "cwe": "CWE-639"
 }
 ```
 
-The frontend and backend are **independent** — the frontend demo does not call the backend.
+PDF reports are generated with ReportLab and saved to `~/.specterapi/reports/`.
 
 ---
 
-## Running locally
+## File structure
 
-### Frontend
-
-```bash
-cd frontend
-npm install
-npm run dev
-# → http://localhost:5173
 ```
-
-### Backend
-
-```bash
-cp backend/.env.example backend/.env
-# add your ANTHROPIC_API_KEY (and optionally GITHUB_TOKEN)
-
-cd backend
-npm install
-npm run dev
-# → http://localhost:3001
-```
-
-**Test the endpoint:**
-
-```bash
-curl -X POST http://localhost:3001/api/scan \
-  -H "Content-Type: application/json" \
-  -d '{"uri": "https://github.com/owner/repo"}'
-```
-
-### Health check
-
-```bash
-curl http://localhost:3001/health
-# → {"ok":true}
+specterapi/
+├── specterapi.py           # Click CLI entry point — ghost, token, idor, chain, sessions
+├── core/
+│   ├── session.py          # SQLite session — endpoints, objects, findings
+│   ├── http_client.py      # DualClient — anon, User A, User B httpx sessions
+│   ├── output.py           # Rich terminal output, banner, findings table
+│   ├── finding.py          # Finding dataclass + Severity enum
+│   └── repl.py             # prompt_toolkit REPL (msfconsole style)
+├── modules/
+│   ├── ghost/
+│   │   ├── crawler.py      # Fetch HTML, extract JS bundle URLs
+│   │   ├── regex_sweep.py  # Multi-pattern API path extraction from JS
+│   │   └── prober.py       # Probe endpoints, classify unauthenticated access
+│   ├── token/
+│   │   ├── discovery.py    # OIDC/.well-known probing
+│   │   ├── redirect_uri.py # Open redirect, path traversal, subdomain injection
+│   │   └── pkce.py         # PKCE presence, plain downgrade, token endpoint check
+│   └── idor/
+│       ├── recorder.py     # Record User A's object IDs from responses
+│       ├── replayer.py     # Replay requests as User B
+│       └── differ.py       # Response comparison — read/delete BOLA, auth bypass
+├── wordlists/
+│   ├── api-endpoints.txt   # 80 common API/admin/actuator paths
+│   ├── african-telco.txt   # USSD, M-Pesa, MoMo, Airtel, Paystack, Flutterwave
+│   └── oauth-paths.txt     # OIDC discovery, authorize, token, JWKS, SAML paths
+└── reports/
+    └── pdf_renderer.py     # ReportLab PDF with severity-coloured findings
 ```
 
 ---
 
-## Environment variables
+## Research basis
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `ANTHROPIC_API_KEY` | Yes | Claude API key from console.anthropic.com |
-| `GITHUB_TOKEN` | No | GitHub PAT — increases rate limit from 60 to 5000 req/hr |
-| `PORT` | No | Backend port (default `3001`) |
+The attack methodology is drawn from:
 
----
+| Report | Target | Severity | Bounty |
+|--------|--------|----------|--------|
+| IDOR — add secondary users | PayPal | Critical | $10,500 |
+| IDOR — delete certifications (GraphQL) | HackerOne | Critical | $12,500 |
+| IDOR — GraphQL BillingDocumentDownload | Shopify | High | $5,000 |
+| CVE-2023-3128 — Azure AD OAuth email claim | Grafana | Critical | CVE |
+| OAuth redirect_uri path traversal | Badoo | Critical | $4,000+ |
+| PKCE optional enforcement | Multiple | High | Multiple |
+| IDOR — MTN Business Africa PII | MTN Group | High | disclosed |
+| Debug endpoint via JS bundle | E-commerce | High | undisclosed |
 
-## Philosophy
-
-> *Every great open source security tool was built by one engineer who was frustrated — by a missing capability, an expensive tool, a broken standard, or wasted time. None started as a company. All became industry standards through community-driven development.*
-
-| Pattern | Tools that embody it |
-|---------|---------------------|
-| Democratise expensive expertise | SpecterAPI, BlastMap, ReportForge |
-| Scratch your own itch | KeyFlare, SockPuppet, IDORacle |
-| Visibility before defence | SpecterAPI, TerraTarget, BlastMap |
-| Make the abstract concrete | KeyFlare, ConfuseCheck, PipeBreak |
-| Community compounds the tool | All three clusters |
+Sources: HackerOne disclosed reports · PortSwigger Web Security Academy · OWASP API Security Top 10 · Doyensec · TrustedSec · YesWeHack
