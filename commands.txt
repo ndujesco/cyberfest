@@ -1,0 +1,21 @@
+specterapi --help
+
+specterapi ghost -t http://localhost:8888 --probe --output json --out-file ghost_findings.json
+
+specterapi token -t http://localhost:8888 --output pdf --out-file token_report.pdf
+
+specterapi idor \
+  -t http://localhost:8888 \
+  --user-a "$USER_A" \
+  --user-b "$USER_B"
+
+specterapi chain \
+  -t http://localhost:8888 \
+  --user-a "$USER_A" \
+  --user-b "$USER_B" \
+  --output pdf \
+  --out-file specter_full_report.pdf
+
+  specterapi
+
+  specterapi sessions
