@@ -1,0 +1,12 @@
+[
+  {
+    "id": "C0DB8BD0",
+    "module": "ghost",
+    "severity": "medium",
+    "title": "Unauthenticated endpoint \u2014 GET /orders",
+    "endpoint": "GET /orders",
+    "evidence": "HTTP 200 with no Authorization header. Response: 1,207 bytes, Content-Type: text/html",
+    "cwe": "CWE-306",
+    "cvss": 5.0
+  }
+]

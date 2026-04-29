@@ -6,6 +6,75 @@ SpecterAPI is a Python CLI security tool that chains three attack modules — gh
 
 ---
 
+## Watch It in Action
+
+[![SpecterAPI — Full Attack Chain Demo](https://img.youtube.com/vi/1rZxEOIJNy8/maxresdefault.jpg)](https://youtu.be/1rZxEOIJNy8)
+
+---
+
+## Getting Started
+
+### 1. Install SpecterAPI
+
+```bash
+cd specterapi
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e .
+```
+
+Verify the install:
+
+```bash
+specterapi --help
+```
+
+### 2. Spin up a vulnerable local target
+
+The recommended target is **crAPI** (Completely Ridiculous API) — a Docker-composed vulnerable API built for BOLA/IDOR and OAuth testing.
+
+```bash
+curl -o docker-compose.yml \
+  https://raw.githubusercontent.com/OWASP/crAPI/main/deploy/docker/docker-compose.yml
+
+docker compose pull
+docker compose -f docker-compose.yml --compatibility up -d
+```
+
+Wait ~60 seconds for all services, then open `http://localhost:8888`.
+
+### 3. Create two accounts
+
+1. Go to `http://localhost:8888` → Sign Up → create `alice@demo.com` / `Password1!`
+2. Open an incognito window → Sign Up → create `bob@demo.com` / `Password1!`
+3. Log in as Alice, add a vehicle, create a post — generate some objects
+4. Grab Alice's JWT from DevTools → Application → Local Storage → `token`
+5. Log in as Bob, grab Bob's JWT the same way
+
+```bash
+export USER_A="eyJhbGciOi..."   # Alice's token
+export USER_B="eyJhbGciOi..."   # Bob's token
+```
+
+### 4. Run the full attack chain
+
+```bash
+specterapi chain \
+  -t http://localhost:8888 \
+  --user-a "$USER_A" \
+  --user-b "$USER_B" \
+  --output pdf \
+  --out-file specter_full_report.pdf
+```
+
+Ghost discovers hidden endpoints from JS bundles, Token walks the OAuth attack tree, IDOR confirms cross-user resource access — all in one session. Open the PDF when it completes.
+
+> **No Docker?** Run the token module against a live target instead:
+> ```bash
+> specterapi token -t https://accounts.google.com --output pdf --out-file google_oauth.pdf
+> ```
+
+---
+
 ## The Three Modules
 
 | Module | Name | What it does |
