@@ -25,3 +25,6 @@ Thumbs.db
 
 backend/
 frontend/
+
+# pitch deck (local only — not for repo)
+pitch/
