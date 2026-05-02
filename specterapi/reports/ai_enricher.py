@@ -1,5 +1,7 @@
 import json
 import os
+import re
+import time
 from pathlib import Path
 
 
@@ -84,22 +86,39 @@ Respond ONLY with valid JSON in this exact format:
   }}
 }}"""
 
-    try:
-        client = _get_client()
-        response = client.models.generate_content(
-            model="gemini-2.0-flash",
-            contents=prompt,
-        )
-        text = response.text.strip()
+    _MODELS = ["gemini-2.0-flash-lite", "gemini-2.0-flash", "gemini-1.5-flash"]
 
-        # Strip markdown code fences if present
-        if text.startswith("```"):
-            text = text.split("```")[1]
-            if text.startswith("json"):
-                text = text[4:]
-        text = text.strip()
+    for model in _MODELS:
+        for attempt in range(3):
+            try:
+                client = _get_client()
+                response = client.models.generate_content(model=model, contents=prompt)
+                text = response.text.strip()
 
-        return json.loads(text)
-    except Exception as e:
-        print(f"[AI enrichment skipped: {e}]")
-        return {}
+                if text.startswith("```"):
+                    text = text.split("```")[1]
+                    if text.startswith("json"):
+                        text = text[4:]
+                text = text.strip()
+
+                return json.loads(text)
+
+            except Exception as e:
+                msg = str(e)
+                # Parse retry delay from the error and wait if suggested
+                if "429" in msg or "RESOURCE_EXHAUSTED" in msg:
+                    match = re.search(r"retryDelay.*?(\d+)s", msg)
+                    wait = int(match.group(1)) + 1 if match else 30
+                    if attempt < 2:
+                        print(f"[AI] {model} rate-limited, retrying in {wait}s...")
+                        time.sleep(wait)
+                        continue
+                    # Out of retries for this model — try next
+                    print(f"[AI] {model} quota exhausted, trying next model...")
+                    break
+                # Non-quota error — skip AI entirely
+                print(f"[AI enrichment skipped: {e}]")
+                return {}
+
+    print("[AI enrichment skipped: all models quota-exhausted. Get a fresh key at https://aistudio.google.com/app/apikey]")
+    return {}
