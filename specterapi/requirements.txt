@@ -5,3 +5,4 @@ prompt_toolkit>=3.0
 reportlab>=4.0
 beautifulsoup4>=4.12
 lxml>=5.0
+google-genai>=1.0

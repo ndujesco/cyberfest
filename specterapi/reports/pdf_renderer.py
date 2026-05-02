@@ -11,6 +11,7 @@ from reportlab.platypus import (
 
 from core.session import Session
 from core.finding import Severity
+from reports.ai_enricher import enrich_findings
 
 _SEV_COLOR = {
     Severity.CRITICAL: colors.HexColor("#dc2626"),
@@ -29,6 +30,9 @@ def render_pdf(session: Session, output_path: str | None = None) -> str:
         Path.home() / ".specterapi" / "reports" / f"specter_{session.id[:8]}_{datetime.now():%Y%m%d_%H%M%S}.pdf"
     )
     Path(out_path).parent.mkdir(parents=True, exist_ok=True)
+
+    ai_data = enrich_findings(findings, summary.get("target", ""))
+    ai_findings = ai_data.get("findings", {})
 
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle(
@@ -61,13 +65,21 @@ def render_pdf(session: Session, output_path: str | None = None) -> str:
         leading=13,
         textColor=colors.HexColor("#334155"),
     )
-    mono_style = ParagraphStyle(
-        "SpecterMono",
+    label_style = ParagraphStyle(
+        "SpecterLabel",
         parent=body_style,
-        fontName="Courier",
+        fontName="Helvetica-Bold",
         fontSize=8,
-        backColor=colors.HexColor("#f1f5f9"),
-        borderPad=4,
+        textColor=colors.HexColor("#0ea5e9"),
+        spaceAfter=2,
+    )
+    ai_body_style = ParagraphStyle(
+        "SpecterAIBody",
+        parent=body_style,
+        fontSize=8,
+        leading=12,
+        textColor=colors.HexColor("#475569"),
+        spaceAfter=4,
     )
 
     doc = SimpleDocTemplate(
@@ -115,7 +127,12 @@ def render_pdf(session: Session, output_path: str | None = None) -> str:
     ]))
     story.append(Paragraph("Executive Summary", section_style))
     story.append(summary_table)
-    story.append(Spacer(1, 0.6 * cm))
+    story.append(Spacer(1, 0.4 * cm))
+
+    if ai_data.get("executive_summary"):
+        story.append(Paragraph(ai_data["executive_summary"], ai_body_style))
+
+    story.append(Spacer(1, 0.4 * cm))
 
     # Findings
     story.append(Paragraph("Findings", section_style))
@@ -126,6 +143,7 @@ def render_pdf(session: Session, output_path: str | None = None) -> str:
         for i, f in enumerate(findings, 1):
             sev_color = _SEV_COLOR.get(f.severity, colors.gray)
             sev_label = f.severity.value.upper()
+            ai = ai_findings.get(f.id, {})
 
             header_data = [[
                 Paragraph(f"#{i} — {f.title}", ParagraphStyle(
@@ -165,7 +183,45 @@ def render_pdf(session: Session, output_path: str | None = None) -> str:
                 ("LINEBELOW", (0, -1), (-1, -1), 0.5, colors.HexColor("#e2e8f0")),
             ]))
             story.append(detail_table)
-            story.append(Spacer(1, 0.3 * cm))
+
+            if ai:
+                story.append(Spacer(1, 0.15 * cm))
+                ai_block_data = []
+                if ai.get("description"):
+                    ai_block_data.append([
+                        Paragraph("Description", label_style),
+                        Paragraph(ai["description"], ai_body_style),
+                    ])
+                if ai.get("business_impact"):
+                    ai_block_data.append([
+                        Paragraph("Business Impact", label_style),
+                        Paragraph(ai["business_impact"], ai_body_style),
+                    ])
+                if ai.get("technical_details"):
+                    ai_block_data.append([
+                        Paragraph("Technical Details", label_style),
+                        Paragraph(ai["technical_details"], ai_body_style),
+                    ])
+                if ai.get("remediation"):
+                    remediation_text = ai["remediation"].replace("•", "\n•")
+                    ai_block_data.append([
+                        Paragraph("Remediation", label_style),
+                        Paragraph(remediation_text, ai_body_style),
+                    ])
+                if ai_block_data:
+                    ai_table = Table(ai_block_data, colWidths=[3.5 * cm, 12.5 * cm])
+                    ai_table.setStyle(TableStyle([
+                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                        ("TOPPADDING", (0, 0), (-1, -1), 3),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+                        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f8fafc")),
+                        ("LINEBELOW", (0, -1), (-1, -1), 0.5, colors.HexColor("#e2e8f0")),
+                    ]))
+                    story.append(ai_table)
+
+            story.append(Spacer(1, 0.4 * cm))
 
     doc.build(story)
     return out_path

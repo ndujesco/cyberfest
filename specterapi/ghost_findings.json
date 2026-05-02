@@ -1,6 +1,6 @@
 [
   {
-    "id": "C0DB8BD0",
+    "id": "A205E27D",
     "module": "ghost",
     "severity": "medium",
     "title": "Unauthenticated endpoint \u2014 GET /orders",
